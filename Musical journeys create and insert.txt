@@ -1,0 +1,260 @@
+-- Drop existing dependent tables to avoid conflicts
+IF OBJECT_ID('LessonReservation', 'U') IS NOT NULL DROP TABLE LessonReservation;
+IF OBJECT_ID('Lesson', 'U') IS NOT NULL DROP TABLE Lesson;
+IF OBJECT_ID('Instrument', 'U') IS NOT NULL DROP TABLE Instrument;
+IF OBJECT_ID('InterviewRequest', 'U') IS NOT NULL DROP TABLE InterviewRequest;
+IF OBJECT_ID('Contract', 'U') IS NOT NULL DROP TABLE Contract;
+IF OBJECT_ID('RoomRental', 'U') IS NOT NULL DROP TABLE RoomRental;
+IF OBJECT_ID('RoomRentalAvailability', 'U') IS NOT NULL DROP TABLE RoomRentalAvailability;
+IF OBJECT_ID('AdminBlockedLessons', 'U') IS NOT NULL DROP TABLE AdminBlockedLessons;
+IF OBJECT_ID('LessonAvailability', 'U') IS NOT NULL DROP TABLE LessonAvailability;
+IF OBJECT_ID('Admin', 'U') IS NOT NULL DROP TABLE Admin;
+IF OBJECT_ID('GroupMemberAssociation', 'U') IS NOT NULL DROP TABLE GroupMemberAssociation;
+IF OBJECT_ID('MusicalGroup', 'U') IS NOT NULL DROP TABLE MusicalGroup;
+IF OBJECT_ID('Interests', 'U') IS NOT NULL DROP TABLE Interests;
+IF OBJECT_ID('Dependent', 'U') IS NOT NULL DROP TABLE Dependent;
+IF OBJECT_ID('SystemUser', 'U') IS NOT NULL DROP TABLE SystemUser;
+
+-- Create SystemUser table
+CREATE TABLE SystemUser (
+    SystemUserID INT IDENTITY(1,1) PRIMARY KEY,
+    Fname NVARCHAR(50) NOT NULL,
+    Lname NVARCHAR(50) NOT NULL,
+    Age INT NOT NULL,
+    Email NVARCHAR(100) NOT NULL,
+    PhoneNum NVARCHAR(15) NOT NULL,
+    VerificationStatus NVARCHAR(50) NOT NULL,
+    DateVerified DATE,
+    HashedCredentialID NVARCHAR(255),
+    IsApproved BIT NOT NULL DEFAULT 0,
+    CONSTRAINT CHK_VerStatus CHECK (VerificationStatus IN ('verified', 'unverified'))
+);
+
+-- Create Dependent table
+CREATE TABLE Dependent (
+    DependentID INT IDENTITY(1,1) PRIMARY KEY,
+    Fname NVARCHAR(50) NOT NULL,
+    Lname NVARCHAR(50) NOT NULL,
+    Age INT NOT NULL,
+    ParentUserID INT NOT NULL,
+    FOREIGN KEY (ParentUserID) REFERENCES SystemUser(SystemUserID)
+);
+
+-- Create Interests table
+CREATE TABLE Interests (
+    InterestID INT IDENTITY(1,1) PRIMARY KEY,
+    InterestName NVARCHAR(50) NOT NULL
+);
+
+-- Create MusicalGroup table
+CREATE TABLE MusicalGroup (
+    MusicalGroupID INT IDENTITY(1,1) PRIMARY KEY,
+    GroupName NVARCHAR(100) NOT NULL,
+    GroupDescription NVARCHAR(MAX)
+);
+
+-- Create GroupMemberAssociation table
+CREATE TABLE GroupMemberAssociation (
+    GroupMemberAssociationID INT IDENTITY(1,1) PRIMARY KEY,
+    SystemUserID INT NOT NULL,
+    MusicalGroupID INT NOT NULL,
+    FOREIGN KEY (SystemUserID) REFERENCES SystemUser(SystemUserID),
+    FOREIGN KEY (MusicalGroupID) REFERENCES MusicalGroup(MusicalGroupID)
+);
+
+-- Create Admin table
+CREATE TABLE Admin (
+    AdminID INT IDENTITY(1,1) PRIMARY KEY,
+    SystemUserID INT NOT NULL,
+    FOREIGN KEY (SystemUserID) REFERENCES SystemUser(SystemUserID)
+);
+
+-- Create Instrument table
+CREATE TABLE Instrument (
+    InstrumentID INT IDENTITY(1,1) PRIMARY KEY,
+    InstrumentName NVARCHAR(50) NOT NULL,
+    InstrumentDescription NVARCHAR(MAX)
+);
+
+-- Create Lesson table
+CREATE TABLE Lesson (
+    LessonID INT IDENTITY(1,1) PRIMARY KEY,
+    CompletionStatus BIT NOT NULL,
+    ProgressNotes NVARCHAR(MAX),
+    InstrumentID INT NOT NULL,
+    AdminID INT NOT NULL,
+    FOREIGN KEY (InstrumentID) REFERENCES Instrument(InstrumentID),
+    FOREIGN KEY (AdminID) REFERENCES Admin(AdminID)
+);
+
+-- Create LessonAvailability table
+CREATE TABLE LessonAvailability (
+    LessonDate DATE NOT NULL,
+    StartTime TIME NOT NULL,
+    EndTime TIME NOT NULL,
+    IsAvailable BIT NOT NULL DEFAULT 1,
+    AdminID INT NOT NULL,
+    PRIMARY KEY (LessonDate, StartTime, EndTime),
+    FOREIGN KEY (AdminID) REFERENCES Admin(AdminID)
+);
+
+-- Create LessonReservation table
+CREATE TABLE LessonReservation (
+    LessonReservationID INT IDENTITY(1,1) PRIMARY KEY,
+    ScheduledTime TIME NOT NULL,
+    ScheduledDate DATE NOT NULL,
+    Price DECIMAL(10,2) NOT NULL,
+    PaymentStatus NVARCHAR(50) NOT NULL,
+    PreLessonNote NVARCHAR(MAX),
+    LessonID INT NOT NULL,
+    SystemUserID INT NOT NULL,
+    FOREIGN KEY (LessonID) REFERENCES Lesson(LessonID),
+    FOREIGN KEY (SystemUserID) REFERENCES SystemUser(SystemUserID),
+    CONSTRAINT CHK_PaymentStatus CHECK (PaymentStatus IN ('Paid', 'Unpaid'))
+);
+
+-- Create InterviewRequest table
+CREATE TABLE InterviewRequest (
+    InterviewRequestID INT IDENTITY(1,1) PRIMARY KEY,
+    ScheduledTime TIME NOT NULL,
+    ScheduledDate DATE NOT NULL,
+    RequestPurpose NVARCHAR(255) NOT NULL,
+    RequestStatus NVARCHAR(50) NOT NULL,
+    SystemUserID INT NOT NULL,
+    FOREIGN KEY (SystemUserID) REFERENCES SystemUser(SystemUserID)
+);
+
+-- Create RoomRentalAvailability table
+CREATE TABLE RoomRentalAvailability (
+    RentalDate DATE NOT NULL,
+    StartTime TIME NOT NULL,
+    EndTime TIME NOT NULL,
+    IsAvailable BIT NOT NULL DEFAULT 1,
+    AdminID INT NOT NULL,
+    PRIMARY KEY (RentalDate, StartTime, EndTime),
+    FOREIGN KEY (AdminID) REFERENCES Admin(AdminID)
+);
+
+-- Create RoomRental table
+CREATE TABLE RoomRental (
+    RoomRentalID INT IDENTITY(1,1) PRIMARY KEY,
+    RentalDate DATE NOT NULL,
+    StartTime TIME NOT NULL,
+    EndTime TIME NOT NULL,
+    Price DECIMAL(10,2) NOT NULL,
+    PaymentStatus NVARCHAR(50) NOT NULL,
+    SystemUserID INT NOT NULL,
+    FOREIGN KEY (SystemUserID) REFERENCES SystemUser(SystemUserID),
+    FOREIGN KEY (RentalDate, StartTime, EndTime) REFERENCES RoomRentalAvailability(RentalDate, StartTime, EndTime),
+    CONSTRAINT CHK_ValidRentalTimes CHECK (StartTime < EndTime)
+);
+
+-- Create Contract table
+CREATE TABLE Contract (
+    ContractID INT IDENTITY(1,1) PRIMARY KEY,
+    FirstAccessDate DATE NOT NULL,
+    LastAccessDate DATE NOT NULL,
+    ContractFile NVARCHAR(MAX),
+    DateSigned DATE NOT NULL,
+    SystemUserID INT NOT NULL,
+    RoomRentalID INT NOT NULL,
+    FOREIGN KEY (SystemUserID) REFERENCES SystemUser(SystemUserID),
+    FOREIGN KEY (RoomRentalID) REFERENCES RoomRental(RoomRentalID)
+);
+-- Insert into SystemUser
+INSERT INTO SystemUser (Fname, Lname, Age, Email, PhoneNum, VerificationStatus, DateVerified, HashedCredentialID, IsApproved)
+VALUES 
+('John', 'Doe', 30, 'john.doe@example.com', '1234567890', 'verified', '2024-01-01', 'hashedpass1', 1),
+('Jane', 'Smith', 25, 'jane.smith@example.com', '0987654321', 'unverified', NULL, 'hashedpass2', 0),
+('Alice', 'Brown', 35, 'alice.brown@example.com', '5555555555', 'verified', '2023-12-15', 'hashedpass3', 1);
+
+-- Insert into Dependent
+INSERT INTO Dependent (Fname, Lname, Age, ParentUserID)
+VALUES 
+('Tom', 'Doe', 10, 1),
+('Anna', 'Smith', 7, 2),
+('Emma', 'Brown', 15, 3);
+
+-- Insert into Interests
+INSERT INTO Interests (InterestName)
+VALUES 
+('Guitar'),
+('Piano'),
+('Violin');
+
+-- Insert into MusicalGroup
+INSERT INTO MusicalGroup (GroupName, GroupDescription)
+VALUES 
+('Rock Band', 'A group for rock music enthusiasts'),
+('Jazz Ensemble', 'A group focusing on jazz music'),
+('Classical Quartet', 'A classical music group with four members');
+
+-- Insert into GroupMemberAssociation
+INSERT INTO GroupMemberAssociation (SystemUserID, MusicalGroupID)
+VALUES 
+(1, 1),
+(2, 2),
+(3, 3);
+
+-- Insert into Admin
+INSERT INTO Admin (SystemUserID)
+VALUES 
+(1),
+(2),
+(3);
+
+-- Insert into Instrument
+INSERT INTO Instrument (InstrumentName, InstrumentDescription)
+VALUES 
+('Guitar', 'Learn chords and melodies'),
+('Piano', 'Master scales and songs'),
+('Violin', 'Develop bowing techniques');
+
+-- Insert into Lesson
+INSERT INTO Lesson (CompletionStatus, ProgressNotes, InstrumentID, AdminID)
+VALUES 
+(0, 'Starting with basic chords.', 1, 1),
+(1, 'Completed beginner scales.', 2, 1),
+(0, 'Practicing advanced bowing.', 3, 2);
+
+-- Insert into LessonAvailability
+INSERT INTO LessonAvailability (LessonDate, StartTime, EndTime, IsAvailable, AdminID)
+VALUES 
+('2024-11-20', '09:00:00', '09:30:00', 1, 1),
+('2024-11-20', '09:30:00', '10:00:00', 1, 1),
+('2024-11-20', '10:00:00', '10:30:00', 0, 2);
+
+-- Insert into LessonReservation
+INSERT INTO LessonReservation (ScheduledTime, ScheduledDate, Price, PaymentStatus, PreLessonNote, LessonID, SystemUserID)
+VALUES 
+('10:00:00', '2024-11-20', 50.00, 'Paid', 'Beginner lesson.', 1, 1),
+('14:00:00', '2024-11-21', 100.00, 'Unpaid', 'Intermediate scales.', 2, 2),
+('15:30:00', '2024-11-22', 75.00, 'Paid', 'Advanced techniques.', 3, 3);
+
+-- Insert into InterviewRequest
+INSERT INTO InterviewRequest (ScheduledTime, ScheduledDate, RequestPurpose, RequestStatus, SystemUserID)
+VALUES 
+('09:00:00', '2024-11-23', 'Practice for concert.', 'Pending', 1),
+('11:00:00', '2024-11-24', 'Community event rehearsal.', 'Pending', 2),
+('13:00:00', '2024-11-25', 'Audition preparation.', 'Pending', 3);
+
+-- Insert into RoomRentalAvailability
+INSERT INTO RoomRentalAvailability (RentalDate, StartTime, EndTime, IsAvailable, AdminID)
+VALUES 
+('2024-11-25', '10:00:00', '11:00:00', 1, 1),
+('2024-11-25', '11:00:00', '12:00:00', 1, 1),
+('2024-11-25', '12:00:00', '13:00:00', 0, 2);
+
+-- Insert into RoomRental
+INSERT INTO RoomRental (RentalDate, StartTime, EndTime, Price, PaymentStatus, SystemUserID)
+VALUES 
+('2024-11-25', '10:00:00', '11:00:00', 150.00, 'Paid', 1),
+('2024-11-25', '11:00:00', '12:00:00', 200.00, 'Unpaid', 2),
+('2024-11-25', '12:00:00', '13:00:00', 175.00, 'Paid', 3);
+
+-- Insert into Contract
+INSERT INTO Contract (FirstAccessDate, LastAccessDate, ContractFile, DateSigned, SystemUserID, RoomRentalID)
+VALUES 
+('2024-11-01', '2024-12-01', 'contract1.pdf', '2024-11-01', 1, 1),
+('2024-11-15', '2024-12-15', 'contract2.pdf', '2024-11-15', 2, 2),
+('2024-11-20', '2024-12-20', 'contract3.pdf', '2024-11-20', 3, 3);
